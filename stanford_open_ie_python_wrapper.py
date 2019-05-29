@@ -2,12 +2,12 @@
 # coding: utf-8
 import os
 import uuid
+from config import config
 from subprocess import Popen
 from sys import stderr
 
 JAVA_BIN_PATH = 'java'
-STANFORD_IE_FOLDER = '/Users/krishna.aruru/Stanford-OpenIE-Python/stanford-openie'
-
+STANFORD_IE_FOLDER = config['STANFORD_IE_FOLDER']
 tmp_folder = "/tmp/openie"
 if not os.path.exists(tmp_folder):
     os.makedirs(tmp_folder)

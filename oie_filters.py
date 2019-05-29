@@ -7,6 +7,7 @@ import en_coref_md
 from nltk import Tree
 from stanford_open_ie_python_wrapper import stanford_ie
 from stanfordnlp.server import CoreNLPClient
+from config import config
 import os
 
 patterns = """
@@ -20,8 +21,7 @@ print("Getting NP parser..")
 NPChunker = nltk.RegexpParser(patterns)
 print("Getting coref parser..")
 coref_parser = en_coref_md.load()
-stanford_corenlp_path = "/Users/krishna.aruru/stanfordnlp_resources/stanford-corenlp-full-2018-10-05"
-os.environ["CORENLP_HOME"] = "/Users/krishna.aruru/stanfordnlp_resources/stanford-corenlp-full-2018-10-05"
+os.environ["CORENLP_HOME"] = config["CORENLP_HOME"]
 
 def convert_to_tree(text):
     sentences = nltk.sent_tokenize(text)
@@ -185,9 +185,9 @@ def get_oie_relations(sentences, lemmatize=False, normalize=False):
 
 
 if __name__ == "__main__":
-    sentences = [line.strip() for line in open("data/vogue_non_empty_descriptions.txt").readlines()][0:3]
+    sentences = [line.strip() for line in open("data/vogue_non_empty_descriptions.txt").readlines()][0:2]
     print("Preprocessing the text data")
-    sentences, nps = process_batch(sentences, True)
+    sentences, nps = process_batch(sentences, False)
     batch_size = 1000 if len(sentences) >= 1000 else len(sentences)
     num_batches = len(sentences) / batch_size
     with open("outputs/stanfordoie_corenlp_outputs_with_ngrams_not_normalized_morhed.txt", "w") as fw:
