@@ -34,10 +34,9 @@ def get_noun_phrases(text):
     sentences = convert_to_tree(text)
     nps = []
     for sent in sentences:
-        tree = NPChunker.parse(sent)
         for subtree in tree.subtrees():
             if subtree.label() == "NP":
-                nps.append(" ".join([word for word, _ in subtree.leaves()]))
+                nps.append(" ".join([word.lower() for word, _ in subtree.leaves()]))
     return nps
 
 def get_corefs(paragraph):
@@ -104,10 +103,10 @@ def flatten(list_2d):
     return [item for sublist in list_2d for item in sublist]
 
 def process_batch(batch, generate_ngrams=False):
-    batch = [preprocess(line, generate_ngrams) for line in batch]
-    batch = flatten(batch)
     nps = [get_noun_phrases(line) for line in batch]
     nps = set(flatten(nps))
+    batch = [preprocess(line, generate_ngrams) for line in batch]
+    batch = flatten(batch)
     return batch, nps
 
 def filter_relations(relations, nounphrases):
@@ -172,6 +171,8 @@ def get_oie_relations(sentences, lemmatize=False, normalize=False):
                             for tok in triple.relationTokens]
                     if normalize:
                         rel = normalize_relation(rel)
+                        subj = [(sub.lower(), pos) for sub, pos in subj]
+                        obj = [(ob.lower(), pos) for ob, pos in obj]
                     
                     subj = " ".join([sub for sub, pos in subj])
                     obj = " ".join([ob for ob, pos in obj])
@@ -185,15 +186,18 @@ def get_oie_relations(sentences, lemmatize=False, normalize=False):
 
 
 if __name__ == "__main__":
-    sentences = [line.strip() for line in open("data/vogue_non_empty_descriptions.txt").readlines()][0:2]
+    in_file = "data/small.txt"
+    out_file = "outputs/small_no_lemma_ngrams.txt"
+    sentences = [line.strip() for line in open(in_file).readlines()]
     print("Preprocessing the text data")
-    sentences, nps = process_batch(sentences, False)
+    sentences, nps = process_batch(sentences, True)
     batch_size = 1000 if len(sentences) >= 1000 else len(sentences)
     num_batches = len(sentences) / batch_size
-    with open("outputs/stanfordoie_corenlp_outputs_with_ngrams_not_normalized_morhed.txt", "w") as fw:
+    with open(out_file, "w") as fw:
         for i in range(0, len(sentences) - batch_size + 1, batch_size):
             print("Processing batch: {} of {}".format(i/batch_size, num_batches))
-            rels = get_oie_relations(sentences[i: i+batch_size], True, False)
+            rels = get_oie_relations(sentences[i: i+batch_size], False, True)
+            rels = filter_relations(rels, nps)
             for relation in rels:
                 fw.write("|".join([x for x in relation]))
                 fw.write("\n")          
