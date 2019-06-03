@@ -31,9 +31,9 @@ def convert_to_tree(text):
     return sentences
 
 def get_noun_phrases(text):
-    sentences = convert_to_tree(text)
+    trees = convert_to_tree(text)
     nps = []
-    for sent in sentences:
+    for tree in trees:
         for subtree in tree.subtrees():
             if subtree.label() == "NP":
                 nps.append(" ".join([word.lower() for word, _ in subtree.leaves()]))
@@ -76,7 +76,7 @@ def remove_stopwords(text):
         return text
     return removed
 
-def get_ngrams(sentence):
+def get_ngrams(sentence, nps):
     tokens = nltk.word_tokenize(sentence)
     req_n_grams = list()
     if len(tokens) <= 4:
@@ -84,10 +84,18 @@ def get_ngrams(sentence):
     for i in range(4, len(tokens) + 1):
         n_grams = nltk.ngrams(tokens, i)
         for gram in n_grams:
-            req_n_grams.append(" ".join(gram))
+            temp = " ".join(gram)
+            # flag = False
+            # for np in nps:
+            #     if np in temp:
+            #         flag = True
+            #         break
+            # if flag:
+            #     req_n_grams.append(temp)
+            req_n_grams.append(temp)
     return req_n_grams
 
-def preprocess(paragraph, generate_ngrams=False):
+def preprocess(paragraph, generate_ngrams=False, nps=None):
     ref_mapping = get_corefs(paragraph)
     paragraph = deref_text(paragraph, ref_mapping)
     # ";" is used to seperate the subject, relation and object by both Stanford and OpenIE. 
@@ -96,7 +104,7 @@ def preprocess(paragraph, generate_ngrams=False):
     paragraph = [line for line in nltk.sent_tokenize(paragraph)
                      if len(nltk.word_tokenize(line)) > 3]
     if generate_ngrams:
-        paragraph = flatten([get_ngrams(line) for line in paragraph])
+        paragraph = flatten([get_ngrams(line, nps) for line in paragraph])
     return paragraph
 
 def flatten(list_2d):
@@ -105,21 +113,22 @@ def flatten(list_2d):
 def process_batch(batch, generate_ngrams=False):
     nps = [get_noun_phrases(line) for line in batch]
     nps = set(flatten(nps))
-    batch = [preprocess(line, generate_ngrams) for line in batch]
+    batch = [preprocess(line, generate_ngrams, nps) for line in batch]
     batch = flatten(batch)
     return batch, nps
 
 def filter_relations(relations, nounphrases):
     rels = [(subj, relation, obj) for subj, relation, obj in relations
             if (subj in nounphrases or obj in nounphrases)]
-    rels = [(subj, remove_stopwords(relation), obj) 
-            for subj, relation, obj in rels]
+    # rels = [(subj, remove_stopwords(relation), obj) 
+    #         for subj, relation, obj in rels]
     return rels
 
 def get_relations(paragraph):
     paragraph = preprocess(paragraph)
-    nps = set(get_noun_phrases(paragraph))
-    rels = get_oie_relations(nltk.sent_tokenize(paragraph))
+    nps = [get_noun_phrases(line) for line in paragraph]
+    nps = set(flatten(nps))
+    rels = get_oie_relations(paragraph, True, True)
     return filter_relations(rels, nps)
 
 def normalize_relation(relation):
@@ -144,6 +153,49 @@ def normalize_relation(relation):
 
     return new_rel
 
+def containedIn(string1, string2):
+    words = string1.split(" ")
+    req = set(string2.split(" "))
+    for word in words:
+        if word not in req:
+            return False
+    return True
+
+def merge_strings(strings):
+    strings = sorted(strings, key=lambda x: len(x))
+    req = set()
+    for string in strings:
+        if string in req:
+            continue
+        else:
+            for r in strings.copy():
+                if containedIn(r, string):
+                    req.discard(r)
+            req.add(string)
+    return req
+
+def merge_relations(relations):
+    print("Merging relations..")
+    subject_rel_mapping = {}
+    object_rel_mapping = {}
+    print("Getting subject relation mapping..")
+    for sub, rel, ob in relations:
+        subject_rel_mapping[(sub, rel)] = subject_rel_mapping.get((sub, rel), []) + [ob]
+    print("Merging objects with common subject, relation..")
+    subj_filtered_rels = []
+    for key, objs in subject_rel_mapping.items():
+        objects = merge_strings(objs)
+        subj_filtered_rels.extend([(key[0], key[1], ob) for ob in objects])
+    print("Getting relation object mapping..")
+    for sub, rel, ob in subj_filtered_rels:
+        object_rel_mapping[(rel, ob)] = object_rel_mapping.get((rel, ob), []) + [sub]
+    print("Merging subjects with common relation, object..")
+    obj_filtered_rels = []
+    for key, subjs in object_rel_mapping.items():
+        subjects = merge_strings(subjs)
+        obj_filtered_rels.extend([(sub, key[0], key[1]) for sub in subjects])
+    print("Relations merged!")
+    return obj_filtered_rels
 
 def get_oie_relations(sentences, lemmatize=False, normalize=False):
     results = []
@@ -163,16 +215,14 @@ def get_oie_relations(sentences, lemmatize=False, normalize=False):
                 index = "word" if not lemmatize else "lemma"
                 
                 for triple in annotated_sentence.openieTriple:
-                    subj = [(token_map[tok.tokenIndex]["word"], token_map[tok.tokenIndex]["pos"])
+                    subj = [(token_map[tok.tokenIndex]["word"].lower(), token_map[tok.tokenIndex]["pos"])
                             for tok in triple.subjectTokens]
-                    obj = [(token_map[tok.tokenIndex]["word"], token_map[tok.tokenIndex]["pos"])
+                    obj = [(token_map[tok.tokenIndex]["word"].lower(), token_map[tok.tokenIndex]["pos"])
                             for tok in triple.objectTokens]
                     rel = [(token_map[tok.tokenIndex][index], token_map[tok.tokenIndex]["pos"])
                             for tok in triple.relationTokens]
                     if normalize:
                         rel = normalize_relation(rel)
-                        subj = [(sub.lower(), pos) for sub, pos in subj]
-                        obj = [(ob.lower(), pos) for ob, pos in obj]
                     
                     subj = " ".join([sub for sub, pos in subj])
                     obj = " ".join([ob for ob, pos in obj])
@@ -184,11 +234,11 @@ def get_oie_relations(sentences, lemmatize=False, normalize=False):
 
     return set(results)
 
-
 if __name__ == "__main__":
-    in_file = "data/small.txt"
-    out_file = "outputs/small_no_lemma_ngrams.txt"
-    sentences = [line.strip() for line in open(in_file).readlines()]
+    in_file = "data/vogue_non_empty_descriptions.txt"
+    out_file = "outputs/vogue_ngrams_lemma_normalize_merge_f5_stopwords_present.txt"
+    merge = True
+    sentences = [line.strip() for line in open(in_file).readlines()[:5]]
     print("Preprocessing the text data")
     sentences, nps = process_batch(sentences, True)
     batch_size = 1000 if len(sentences) >= 1000 else len(sentences)
@@ -196,8 +246,10 @@ if __name__ == "__main__":
     with open(out_file, "w") as fw:
         for i in range(0, len(sentences) - batch_size + 1, batch_size):
             print("Processing batch: {} of {}".format(i/batch_size, num_batches))
-            rels = get_oie_relations(sentences[i: i+batch_size], False, True)
+            rels = get_oie_relations(sentences[i: i+batch_size], True, True)
             rels = filter_relations(rels, nps)
+            if merge:
+                rels = merge_relations(rels)
             for relation in rels:
                 fw.write("|".join([x for x in relation]))
                 fw.write("\n")          

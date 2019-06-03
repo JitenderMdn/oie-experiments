@@ -1,0 +1,6 @@
+file|mean|test for coreferencing effect
+aish|be|famous bollywood actress
+aish|be|still famous
+file|test|coreferencing effect
+effect|be|important
+file|be|meant

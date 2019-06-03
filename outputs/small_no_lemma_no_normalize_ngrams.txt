@@ -1,0 +1,10 @@
+file|meant|test for coreferencing
+file|meant|test for coreferencing effect
+effect|is|important
+file|test|coreferencing effect
+file|meant|test for
+file|meant|test
+Aish|was|bollywood actress
+file|is|meant
+file|test|coreferencing
+file|meant|test

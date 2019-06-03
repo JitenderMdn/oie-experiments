@@ -1,0 +1,15 @@
+aish|be|bollywood
+file|be mean|test
+aish|be|bollywood actress
+file|be mean to|test
+file|test for|coreferencing
+file|be mean|test for coreferencing
+file|test for|coreferencing effect
+effect|be|important
+aish|be|still famous
+aish|be|famous
+file|be mean|test for coreferencing effect
+aish|be|famous bollywood actress
+file|be|meant
+aish|be|famous bollywood
+file|be mean|test for
