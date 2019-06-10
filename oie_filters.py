@@ -118,11 +118,32 @@ def process_batch(batch, generate_ngrams=False):
     return batch, nps
 
 def filter_relations(relations, nounphrases):
-    rels = [(subj, relation, obj) for subj, relation, obj in relations
-            if (subj in nounphrases or obj in nounphrases)]
+    rels = [rel for rel in relations
+            if _valid_relation_np(rel, nounphrases, True, False)]
     # rels = [(subj, remove_stopwords(relation), obj) 
     #         for subj, relation, obj in rels]
     return rels
+
+def _valid_relation_np(relation, nounphrases, strict=True, strict_merge=True):
+    subj, _, obj = relation
+    s_flag = False
+    o_flag = False
+    if strict_merge:
+        s_flag = subj in nounphrases
+        o_flag = obj in nounphrases
+        val = (s_flag and o_flag) if strict else (s_flag or o_flag)
+        return val
+
+    for phrase in nounphrases:
+        if containedIn(phrase, subj, False):
+            s_flag = True
+        if containedIn(phrase, obj, False):
+            o_flag = True
+        val = (s_flag and o_flag) if strict else (s_flag or o_flag)
+        if val:
+            return val
+    return False
+
 
 def get_relations(paragraph):
     paragraph = preprocess(paragraph)
@@ -153,9 +174,15 @@ def normalize_relation(relation):
 
     return new_rel
 
-def containedIn(string1, string2):
+def containedIn(string1, string2, ignore_stopwords=True):
     words = string1.split(" ")
     req = set(string2.split(" "))
+
+    if ignore_stopwords:
+        stopwords = set(nltk.corpus.stopwords.words('english'))
+        words = [word for word in words if word.lower() not in stopwords]
+        req = set([word for word in req if word.lower() not in stopwords])
+
     for word in words:
         if word not in req:
             return False
@@ -174,10 +201,35 @@ def merge_strings(strings):
             req.add(string)
     return req
 
+def merge_peripherals(peripherals):
+    i = 0
+    j = 1
+    flag = False
+    while i < len(peripherals):
+        j = i + 1
+        while j < len(peripherals):
+            s1, o1 = peripherals[i]
+            s2, o2 = peripherals[j]
+            if (containedIn(s1, s2, False) or containedIn(s2, s1, False)) and (containedIn(o1, o2, False) or containedIn(o2, o1, False)):
+               s = s1 if len(s1) > len(s2) else s2
+               o = o1 if len(o1) > len(o2) else o2
+               peripherals[i] = (s, o)
+               del peripherals[j]
+
+            else:
+                j += 1
+        i += 1
+    
+    return peripherals
+
+
+
 def merge_relations(relations):
     print("Merging relations..")
     subject_rel_mapping = {}
     object_rel_mapping = {}
+    subject_object_mapping = {}
+    rel_mapping = {}
     print("Getting subject relation mapping..")
     for sub, rel, ob in relations:
         subject_rel_mapping[(sub, rel)] = subject_rel_mapping.get((sub, rel), []) + [ob]
@@ -194,8 +246,22 @@ def merge_relations(relations):
     for key, subjs in object_rel_mapping.items():
         subjects = merge_strings(subjs)
         obj_filtered_rels.extend([(sub, key[0], key[1]) for sub in subjects])
+    print("Getting subject, object mapping..")
+    for sub, rel, ob in obj_filtered_rels:
+        subject_object_mapping[(sub, ob)] = subject_object_mapping.get((sub, ob), []) + [rel]
+    print("Merging relations with same subject and object..")
+    rel_filtered_rels = []
+    for key, rels in subject_object_mapping.items():
+        relations = merge_strings(rels)
+        rel_filtered_rels.extend([(key[0], rel, key[1]) for rel in relations])
+    print("Getting rel mapping")
+    for sub, rel, ob in rel_filtered_rels:
+        rel_mapping[rel] = rel_mapping.get(rel, []) + [(sub, ob)]
+    merged = []
+    for rel, values in rel_mapping.items():
+        values = merge_peripherals(values)
     print("Relations merged!")
-    return obj_filtered_rels
+    return rel_filtered_rels
 
 def get_oie_relations(sentences, lemmatize=False, normalize=False):
     results = []
@@ -236,7 +302,7 @@ def get_oie_relations(sentences, lemmatize=False, normalize=False):
 
 if __name__ == "__main__":
     in_file = "data/vogue_non_empty_descriptions.txt"
-    out_file = "outputs/vogue_ngrams_lemma_normalize_merge_f5_stopwords_present.txt"
+    out_file = "outputs/vogue_ngrams_lemma_normalize_merge_f5_stopwords_present_fuzzy_np_check_on_both_fuzzy_contained_in.txt"
     merge = True
     sentences = [line.strip() for line in open(in_file).readlines()[:5]]
     print("Preprocessing the text data")
@@ -247,9 +313,9 @@ if __name__ == "__main__":
         for i in range(0, len(sentences) - batch_size + 1, batch_size):
             print("Processing batch: {} of {}".format(i/batch_size, num_batches))
             rels = get_oie_relations(sentences[i: i+batch_size], True, True)
-            rels = filter_relations(rels, nps)
             if merge:
                 rels = merge_relations(rels)
+            rels = filter_relations(rels, nps)
             for relation in rels:
                 fw.write("|".join([x for x in relation]))
                 fw.write("\n")          
