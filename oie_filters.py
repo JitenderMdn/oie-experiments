@@ -89,7 +89,7 @@ def get_ngrams(sentence, nps):
             count = 0
             for np in nps:
                 if np in temp:
-                    count += 2
+                    count += 1
             if count >= 2:
                 req_n_grams.append(temp)
     return req_n_grams
@@ -328,7 +328,7 @@ if __name__ == "__main__":
 
     ans = merge_relations(ans)
     
-    with open(outfile, "w") as fw:
+    with open(out_file, "w") as fw:
         for rel in ans:
             fw.write("|".join(rel))
             fw.write("\n")
