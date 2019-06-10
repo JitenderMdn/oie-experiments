@@ -258,10 +258,13 @@ def merge_relations(relations):
     for sub, rel, ob in rel_filtered_rels:
         rel_mapping[rel] = rel_mapping.get(rel, []) + [(sub, ob)]
     merged = []
+    print("merging relations with same relation..")
     for rel, values in rel_mapping.items():
         values = merge_peripherals(values)
+        merged.extend([(sub, rel, ob) for sub, ob in values])
+        # breakpoint()
     print("Relations merged!")
-    return rel_filtered_rels
+    return merged
 
 def get_oie_relations(sentences, lemmatize=False, normalize=False):
     results = []
@@ -302,21 +305,26 @@ def get_oie_relations(sentences, lemmatize=False, normalize=False):
 
 if __name__ == "__main__":
     in_file = "data/vogue_non_empty_descriptions.txt"
-    out_file = "outputs/vogue_ngrams_lemma_normalize_merge_f5_stopwords_present_fuzzy_np_check_on_both_fuzzy_contained_in.txt"
+    out_file = "outputs/vogue_optimal.txt"
     merge = True
     sentences = [line.strip() for line in open(in_file).readlines()[:5]]
     print("Preprocessing the text data")
     sentences, nps = process_batch(sentences, True)
     batch_size = 1000 if len(sentences) >= 1000 else len(sentences)
     num_batches = len(sentences) / batch_size
-    with open(out_file, "w") as fw:
-        for i in range(0, len(sentences) - batch_size + 1, batch_size):
-            print("Processing batch: {} of {}".format(i/batch_size, num_batches))
-            rels = get_oie_relations(sentences[i: i+batch_size], True, True)
-            if merge:
-                rels = merge_relations(rels)
-            rels = filter_relations(rels, nps)
-            for relation in rels:
-                fw.write("|".join([x for x in relation]))
-                fw.write("\n")          
+    relations = []
+    ans = []
+    for i in range(0, len(sentences) - batch_size + 1, batch_size):
+        print("Processing batch: {} of {}".format(i/batch_size, num_batches))
+        rels = get_oie_relations(sentences[i: i+batch_size], True, True)
+        if merge:
+            rels = merge_relations(rels)
+        rels = filter_relations(rels, nps)
+        ans.extend(rels)
+    ans = merge_relations(ans)
+    
+    with open(outfile, "w") as fw:
+        for rel in ans:
+            fw.write("|".join(rel))
+            fw.write("\n")
 
