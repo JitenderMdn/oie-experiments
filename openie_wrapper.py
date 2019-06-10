@@ -6,7 +6,7 @@ from sys import argv, stderr
 
 JAVA_BIN_PATH = 'java'
 DOT_BIN_PATH = 'dot'
-OIE_FOLDER = '/mnt/vamshi/OpenIE-standalone'
+OIE_FOLDER = config["OIE_FOLDER"]
 
 tmp_folder = "/tmp/openie"
 if not os.path.exists(tmp_folder):

@@ -6,6 +6,7 @@ import pprint
 import en_coref_md
 from nltk import Tree
 from stanford_open_ie_python_wrapper import stanford_ie
+from openie_wrapper import openie_ie
 from stanfordnlp.server import CoreNLPClient
 from config import config
 import os
@@ -264,7 +265,7 @@ def merge_relations(relations):
     print("Relations merged!")
     return merged
 
-def get_oie_relations(sentences, lemmatize=False, normalize=False):
+def get_oie_relations_stanford(sentences, lemmatize=False, normalize=False):
     results = []
     
     with CoreNLPClient(annotators=["openie"], timeout=60000, memory='8G') as client:
@@ -305,16 +306,21 @@ if __name__ == "__main__":
     in_file = "data/vogue_non_empty_descriptions.txt"
     out_file = "outputs/vogue_optimal_filtered.txt"
     merge = True
+    ngrams = True
+    use_stanford = True 
     sentences = [line.strip() for line in open(in_file).readlines()[:5]]
     print("Preprocessing the text data")
-    sentences, nps = process_batch(sentences, True)
+    sentences, nps = process_batch(sentences, ngrams)
     batch_size = 1000 if len(sentences) >= 1000 else len(sentences)
     num_batches = len(sentences) / batch_size
     relations = []
     ans = []
     for i in range(0, len(sentences) - batch_size + 1, batch_size):
         print("Processing batch: {} of {}".format(i/batch_size, num_batches))
-        rels = get_oie_relations(sentences[i: i+batch_size], True, True)
+        if use_stanford:
+            rels = get_oie_relations_stanford(sentences[i: i+batch_size], True, True)
+        else:
+            rels = openie_ie(sentences[i:i+batch_size])
         if merge:
             rels = merge_relations(rels)
         rels = filter_relations(rels, nps)
