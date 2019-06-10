@@ -85,14 +85,12 @@ def get_ngrams(sentence, nps):
         n_grams = nltk.ngrams(tokens, i)
         for gram in n_grams:
             temp = " ".join(gram)
-            # flag = False
-            # for np in nps:
-            #     if np in temp:
-            #         flag = True
-            #         break
-            # if flag:
-            #     req_n_grams.append(temp)
-            req_n_grams.append(temp)
+            count = 0
+            for np in nps:
+                if np in temp:
+                    count += 2
+            if count >= 2:
+                req_n_grams.append(temp)
     return req_n_grams
 
 def preprocess(paragraph, generate_ngrams=False, nps=None):
@@ -305,7 +303,7 @@ def get_oie_relations(sentences, lemmatize=False, normalize=False):
 
 if __name__ == "__main__":
     in_file = "data/vogue_non_empty_descriptions.txt"
-    out_file = "outputs/vogue_optimal.txt"
+    out_file = "outputs/vogue_optimal_filtered.txt"
     merge = True
     sentences = [line.strip() for line in open(in_file).readlines()[:5]]
     print("Preprocessing the text data")
@@ -321,6 +319,7 @@ if __name__ == "__main__":
             rels = merge_relations(rels)
         rels = filter_relations(rels, nps)
         ans.extend(rels)
+
     ans = merge_relations(ans)
     
     with open(outfile, "w") as fw:
