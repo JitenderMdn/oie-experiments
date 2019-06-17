@@ -116,6 +116,46 @@ def process_batch(batch, generate_ngrams=False):
     batch = flatten(batch)
     return batch, nps
 
+def get_positions(array, ele):
+    ele = ele.split(" ")
+    i = 0
+    array = [w.lower() for w in array]
+    positions = []
+    # positions.append((0, 0))
+    while i < len(array):
+        if array[i:i+len(ele)] == ele:
+            positions.append((i, i+len(ele)-1))
+            i = i + len(ele)
+        else:
+            i += 1
+    # positions.append((len(array)-1, len(array)-1))
+    return positions
+
+def process_line_nps(line):
+    nps = get_noun_phrases(line)
+    words = nltk.word_tokenize(line)
+    indices = flatten([get_positions(words, np) for np in nps])
+    indices = sorted(indices)
+    req = []
+    for i in range(0, len(indices)):
+        for j in range(i, len(indices)):
+            start = indices[i][0]
+            end = indices[j][1]
+            req.append(words[start:end+1])
+    req = list(set([" ".join(r) for r in req if len(r) >= 3]))
+    return req, nps
+
+
+def process_batch_nps(batch):
+    lines = [preprocess(line) for line in batch]
+    lines = flatten(lines)
+    req = [process_line_nps(line) for line in lines]
+    phrases, nps = list(zip(*req))
+    phrases = flatten(phrases)
+    nps = set(flatten(nps))
+    return phrases, nps
+
+ 
 def filter_relations(relations, nounphrases):
     rels = [rel for rel in relations
             if _valid_relation_np(rel, nounphrases, True, False)]
@@ -304,13 +344,18 @@ def get_oie_relations_stanford(sentences, lemmatize=False, normalize=False):
 
 if __name__ == "__main__":
     in_file = "data/vogue_non_empty_descriptions.txt"
-    out_file = "outputs/vogue_optimal_filtered.txt"
+    out_file = "outputs/vogue_3phrase_optimal_filtered.txt"
     merge = True
     ngrams = True
-    use_stanford = True 
-    sentences = [line.strip() for line in open(in_file).readlines()[:5]]
+    use_stanford = True
+    use_phrases = True
+    sentences = [line.strip() for line in open(in_file).readlines()[2:3]]
     print("Preprocessing the text data")
-    sentences, nps = process_batch(sentences, ngrams)
+    if use_phrases:
+        sentences, nps = process_batch_nps(sentences)
+    else:
+        sentences, nps = process_batch(sentences, ngrams)
+    # breakpoint()
     batch_size = 1000 if len(sentences) >= 1000 else len(sentences)
     num_batches = len(sentences) / batch_size
     relations = []
